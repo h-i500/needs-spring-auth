@@ -6,7 +6,19 @@ services:
     image: needs/pdf-host:latest
     environment:
       SPRING_APPLICATION_JSON: |
-        { "server": { "port": 10081 } }
+        { "server": { "port": 10081 },
+          "spring": {
+            "security": {
+              "oauth2": {
+                "resourceserver": {
+                  "jwt": {
+                    "issuer-uri": "http://keycloak:8080/realms/needs-realm"
+                  }
+                }
+              }
+            }
+          }
+         }
     ports:
       - "10081:10081"
     healthcheck:
@@ -29,6 +41,17 @@ services:
       SPRING_APPLICATION_JSON: |
         {
           "server": { "port": 10080 },
+          "spring": {
+            "security": {
+              "oauth2": {
+                "resourceserver": {
+                  "jwt": {
+                    "issuer-uri": "http://keycloak:8080/realms/needs-realm"
+                  }
+                }
+              }
+            }
+          },
           "app": {
             "sourceUrl": "http://pdf-host:10081/jsprice/sample",
             "output": { "dir": "/data/output", "filename": "jsprice_20250630.csv" }

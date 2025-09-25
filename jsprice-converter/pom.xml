@@ -1,7 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.3.3</version>
+    <relativePath/>
+  </parent>
 
   <groupId>com.example</groupId>
   <artifactId>jsprice-converter</artifactId>
@@ -11,25 +19,15 @@
 
   <properties>
     <java.version>17</java.version>
-    <spring-boot.version>3.3.2</spring-boot.version>
     <camel.version>4.6.0</camel.version>
     <pdfbox.version>2.0.30</pdfbox.version>
     <opencsv.version>5.9</opencsv.version>
     <maven.compiler.release>${java.version}</maven.compiler.release>
   </properties>
 
-  <!-- ★ 依存バージョンの基準：Boot と Camel(SB) の BOM を取り込む -->
+  <!-- Camel(Spring Boot) の BOM。Camel 系だけここで version 管理 -->
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-dependencies</artifactId>
-        <version>${spring-boot.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-
-      <!-- ★ Camel Spring Boot 用の BOM（これが camel-bom も内包） -->
       <dependency>
         <groupId>org.apache.camel.springboot</groupId>
         <artifactId>camel-spring-boot-dependencies</artifactId>
@@ -41,7 +39,7 @@
   </dependencyManagement>
 
   <dependencies>
-    <!-- Spring Boot -->
+    <!-- Spring Boot 基本 -->
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter</artifactId>
@@ -51,7 +49,30 @@
       <artifactId>spring-boot-starter-web</artifactId>
     </dependency>
 
-    <!-- Apache Camel (★ version 指定不要：BOM が管理) -->
+    <!-- Security + Resource Server -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+    </dependency>
+
+    <!-- ★ JOSE は Spring Security のモジュール -->
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
+
+    <!-- Actuator（任意）-->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- Camel（BOM 管理下なので version 指定不要） -->
     <dependency>
       <groupId>org.apache.camel.springboot</groupId>
       <artifactId>camel-spring-boot-starter</artifactId>
@@ -64,14 +85,12 @@
       <groupId>org.apache.camel</groupId>
       <artifactId>camel-file</artifactId>
     </dependency>
-
-    <!-- Camel Quartz (cron スケジューラ) -->
     <dependency>
       <groupId>org.apache.camel.springboot</groupId>
       <artifactId>camel-quartz-starter</artifactId>
     </dependency>
 
-    <!-- PDF / CSV（これらは外部なので個別版を維持） -->
+    <!-- PDF / CSV（外部ライブラリは個別 version） -->
     <dependency>
       <groupId>org.apache.pdfbox</groupId>
       <artifactId>pdfbox</artifactId>
@@ -89,27 +108,17 @@
       <artifactId>spring-boot-starter-test</artifactId>
       <scope>test</scope>
     </dependency>
-
-    <!-- Camel テスト（core + Spring Boot JUnit5）-->
     <dependency>
       <groupId>org.apache.camel</groupId>
       <artifactId>camel-test-junit5</artifactId>
       <scope>test</scope>
     </dependency>
-    <!-- <dependency>
-      <groupId>org.apache.camel.springboot</groupId>
-      <artifactId>camel-test-spring-junit5</artifactId>
-      <version>${camel.version}</version>
-      <scope>test</scope>
-    </dependency> -->
     <dependency>
       <groupId>org.apache.camel</groupId>
       <artifactId>camel-test-spring-junit5</artifactId>
       <version>${camel.version}</version>
       <scope>test</scope>
     </dependency>
-
-    <!-- 任意：camel-mock（BOM管理下） -->
     <dependency>
       <groupId>org.apache.camel</groupId>
       <artifactId>camel-mock</artifactId>
@@ -120,25 +129,14 @@
   <build>
     <plugins>
       <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+      <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.11.0</version>
         <configuration>
           <release>${maven.compiler.release}</release>
         </configuration>
-      </plugin>
-
-      <!-- ★ plugin の version 警告を消す -->
-      <plugin>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-maven-plugin</artifactId>
-        <version>${spring-boot.version}</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>repackage</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
     </plugins>
   </build>

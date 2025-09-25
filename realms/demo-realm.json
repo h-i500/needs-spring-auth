@@ -14,7 +14,43 @@
   "clientSessionMaxLifespan": 28800,
   "accessTokenLifespan": 900,
 
-  "clients": [],
+  "clients": [
+    {
+      "clientId": "kong",
+      "protocol": "openid-connect",
+      "name": "Kong Gateway",
+      "enabled": true,
+
+      "publicClient": false,
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+
+      "redirectUris": [
+        "http://localhost:8000/*"
+      ],
+      "webOrigins": [
+        "http://localhost:8000"
+      ],
+      "baseUrl": "http://localhost:8000/",
+      "adminUrl": "",
+      "rootUrl": "",
+
+      "attributes": {
+        "post.logout.redirect.uris": "http://localhost:8000/*",
+        "oauth2.device.authorization.grant.enabled": "false",
+        "backchannel.logout.session.required": "true",
+        "backchannel.logout.revoke.offline.tokens": "true",
+        "pkce.code.challenge.method": "S256"
+      },
+
+      "defaultClientScopes": [],
+      "optionalClientScopes": [],
+
+      "secret": "CHANGE_ME_CLIENT_SECRET"
+    }
+  ],
 
   "clientScopes": [],
 
