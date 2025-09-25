@@ -49,6 +49,17 @@
       "optionalClientScopes": [],
 
       "secret": "CHANGE_ME_CLIENT_SECRET"
+    },
+    {
+      "clientId": "test-cli",
+      "protocol": "openid-connect",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": []
     }
   ],
 
