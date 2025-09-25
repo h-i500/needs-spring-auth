@@ -1,0 +1,166 @@
+services:
+  pdf-host:
+    build:
+      context: ./pdf-host
+      dockerfile: Dockerfile
+    image: needs/pdf-host:latest
+    environment:
+      SPRING_APPLICATION_JSON: |
+        { "server": { "port": 10081 } }
+    ports:
+      - "10081:10081"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:10081/jsprice/sample"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [needs-net]
+
+  jsprice-converter:
+    build:
+      context: ./jsprice-converter
+      dockerfile: Dockerfile
+    image: needs/jsprice-converter:latest
+    ports:
+      - "10080:10080"   # ← ホスト10080で公開
+    volumes:
+      - ./data:/data
+    environment:
+      SPRING_APPLICATION_JSON: |
+        {
+          "server": { "port": 10080 },
+          "app": {
+            "sourceUrl": "http://pdf-host:10081/jsprice/sample",
+            "output": { "dir": "/data/output", "filename": "jsprice_20250630.csv" }
+          }
+        }
+      APP_DEBUG_EVERYMINUTE: "true"
+    depends_on:
+      pdf-host:
+        condition: service_healthy
+    networks: [needs-net]
+
+  csv-postprocessor:
+    build:
+      context: ./csv-postprocessor
+      dockerfile: Dockerfile
+    image: needs/csv-postprocessor:latest
+    environment:
+      SPRING_APPLICATION_JSON: |
+        {
+          "server": { "port": 10082 },
+          "app": {
+            "inDir": "/data/output",
+            "outDir": "/data/txt",
+            "replaceCommaWithTab": true
+          },
+          "camel": { "springboot": { "main-run-controller": true } }
+        }
+    volumes:
+      - ./data:/data
+    ports:
+      - "10082:10082"   # ← ホスト10082で公開
+    depends_on:
+      jsprice-converter:
+        condition: service_started
+    restart: unless-stopped
+    networks: [needs-net]
+
+
+### kong
+  kong:
+    image: kong:3.6
+    environment:
+      # DB-less & 宣言的設定（既存）
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /usr/local/kong/declarative/kong.yml
+
+      # ルータ（既に expressions を使えているのでそのまま）
+      KONG_ROUTER_FLAVOR: expressions
+
+      # ★ DNS を Docker の組込みDNSへ固定し、ブロッキングを避ける
+      KONG_DNS_RESOLVER: 127.0.0.11
+      KONG_DNS_NO_SYNC: "on"
+      KONG_DNS_ERROR_TTL: "1"
+      KONG_DNS_NOT_FOUND_TTL: "1"
+      KONG_DNS_STALE_TTL: "60"
+      # ★ IPv6 で詰まる環境を避けるため A(IPv4) を優先
+      KONG_DNS_ORDER: A,CNAME,SRV
+
+      # ★ コネクション再利用を有効化
+      KONG_NGINX_HTTP_KEEPALIVE_TIMEOUT: 65s
+      KONG_NGINX_HTTP_KEEPALIVE_REQUESTS: "1000"
+      KONG_NGINX_HTTP_UPSTREAM_KEEPALIVE: "60"
+
+      # ★ IPv4 のみでリッスン
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+
+      # ★ ヘッダサイズ対策
+      KONG_NGINX_PROXY_CLIENT_HEADER_BUFFER_SIZE: 16k
+      KONG_NGINX_PROXY_LARGE_CLIENT_HEADER_BUFFERS: "8 16k"
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 16k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: "8 16k"
+      KONG_NGINX_PROXY_PROXY_BUFFERING: "on"
+    ports:
+      - "8000:8000"  # Public gateway
+      - "8001:8001"  # Admin
+    volumes:
+      - ./kong/kong.yml:/usr/local/kong/declarative/kong.yml:ro
+      - ./kong/kong-nginx-http.conf:/usr/local/kong/nginx-http.conf:ro
+    networks: [needs-net]
+
+  kong-database:
+    image: postgres:10
+    environment:
+      POSTGRES_USER: kong
+      POSTGRES_DB: kong
+      POSTGRES_PASSWORD: kong
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+      - ./konga/init-konga-db.sql:/docker-entrypoint-initdb.d/init-konga-db.sql
+    networks: [needs-net]
+
+  konga:
+    image: pantsel/konga:latest
+    container_name: konga
+    restart: always
+    environment:
+      - NODE_ENV=development
+      - DB_ADAPTER=postgres
+      - DB_HOST=kong-database
+      - DB_USER=kong
+      - DB_PASSWORD=kong
+      - DB_DATABASE=konga
+      - KONGA_SEED_USER_DATA_SOURCE_FILE=/seeds/seed-users.js
+      - KONGA_SEED_KONG_NODE_DATA_SOURCE_FILE=/seeds/seed-nodes.js
+    ports:
+      - "1337:1337"
+    volumes:
+      - ./konga/seed-users.js:/seeds/seed-users.js:ro
+      - ./konga/seed-nodes.js:/seeds/seed-nodes.js:ro
+    depends_on:
+      - kong-database
+    networks: [needs-net]
+
+### keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0.2
+    command: ["start-dev","--import-realm"]
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    volumes:
+      - ./realms:/opt/keycloak/data/import:ro
+    ports:
+      - "8080:8080"
+    networks: [needs-net]
+
+### ボリューム設定
+volumes:
+  kong_data:
+
+### ネットワーク設定
+networks:
+  needs-net:
+    driver: bridge
