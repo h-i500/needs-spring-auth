@@ -1,0 +1,58 @@
+{
+  "realm": "needs-realm",
+  "enabled": true,
+
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "verifyEmail": false,
+
+  "ssoSessionIdleTimeout": 3600,
+  "ssoSessionMaxLifespan": 28800,
+  "clientSessionIdleTimeout": 3600,
+  "clientSessionMaxLifespan": 28800,
+  "accessTokenLifespan": 900,
+
+  "clients": [],
+
+  "clientScopes": [],
+
+  "defaultDefaultClientScopes": [],
+  "defaultOptionalClientScopes": [],
+
+  "roles": {
+    "realm": [
+      {
+        "name": "needsuser",
+        "description": "needsuser"
+      },
+      {
+        "name": "needsread",
+        "description": "needsread"
+      }
+    ]
+  },
+
+  "users": [
+    {
+      "username": "testuser",
+      "enabled": true,
+      "emailVerified": true,
+      "email": "user@example.com",
+      "firstName": "Demo",
+      "lastName": "User",
+      "credentials": [
+        {
+          "type": "password",
+          "value": "password",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "needsuser",
+        "needsread"
+      ]
+    }
+  ]
+}
