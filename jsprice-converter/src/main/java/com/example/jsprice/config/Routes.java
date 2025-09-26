@@ -1,5 +1,6 @@
 package com.example.jsprice.config;
 
+import com.example.jsprice.ServiceTokenProvider;
 import com.example.jsprice.processor.PdfToCsvProcessor;
 import org.apache.camel.Exchange;
 import org.apache.camel.builder.RouteBuilder;
@@ -8,6 +9,12 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class Routes extends RouteBuilder {
+
+  private final ServiceTokenProvider serviceTokenProvider;
+
+  public Routes(ServiceTokenProvider serviceTokenProvider) {
+    this.serviceTokenProvider = serviceTokenProvider;
+  }
 
   @Value("${app.sourceUrl}")
   String sourceUrl;
@@ -37,20 +44,59 @@ public class Routes extends RouteBuilder {
       .to("log:jsprice-error?level=ERROR");
 
     // 互換: 既存の direct:run 呼び出しがあれば runJob にフォワード
+    // from("direct:run")
+    //   .routeId("compat-direct-run")
+    //   .to("direct:runJob");
     from("direct:run")
-      .routeId("compat-direct-run")
-      .to("direct:runJob");
+        .routeId("jsprice-run")
+        .setHeader(org.apache.camel.Exchange.HTTP_METHOD, constant("GET"))
+        // ここで Authorization ヘッダをそのまま引き継ぐ
+        .setHeader("Authorization", header("Authorization"))
+        // 401を例外にする
+        .toD("http://pdf-host:10081/jsprice/sample?throwExceptionOnFailure=true")
+        // 以降：ダウンロード結果の保存や後段処理 …
+    ;
+
 
     // 実処理本体：手動・定期どちらもここを通る
     from("direct:runJob")
       .routeId("jsprice-runJob")
+      .process(exchange -> {
+          // サービス用Bearerを取得して付与
+          String token = serviceTokenProvider.getBearerToken();
+          exchange.getMessage().setHeader("Authorization", "Bearer " + token);
+      })
+      .setHeader(org.apache.camel.Exchange.HTTP_METHOD, constant("GET"))
       .setHeader("outputDir", simple(outputDir))
       .setHeader("outputFileName", simple(outputFileName))
       .log("Downloading PDF from: " + sourceUrl)
-      .toD("{{app.sourceUrl}}?bridgeEndpoint=true")
+      // .toD("{{app.sourceUrl}}?bridgeEndpoint=true")
+      // .toD("http://pdf-host:10081/jsprice/sample?throwExceptionOnFailure=true")
+      .toD("{{app.sourceUrl}}?throwExceptionOnFailure=true")
       .process(new PdfToCsvProcessor())
       .log("Writing CSV to: ${header.outputDir}/${header.outputFileName}")
       .toD("file:${header.outputDir}?fileName=${header.outputFileName}")
       .log("Done.");
+  
+  
+    from("quartz://debug/everyMinute?cron=0+*+*+*+*+?")
+      .routeId("debugEveryMinute")
+      .log("DEBUG quartz fired: every minute (Asia/Tokyo)")
+      .to("direct:run-job")
+    ;
+
+    from("direct:run-job")
+      .routeId("jsprice-runJob")
+      .process(exchange -> {
+          // サービス用Bearerを取得して付与
+          String token = serviceTokenProvider.getBearerToken();
+          exchange.getMessage().setHeader("Authorization", "Bearer " + token);
+      })
+      .setHeader(org.apache.camel.Exchange.HTTP_METHOD, constant("GET"))
+      .toD("http://pdf-host:10081/jsprice/sample?throwExceptionOnFailure=true")
+      // 以降：保存／CSV変換など…
+    ;
+
+  
   }
 }

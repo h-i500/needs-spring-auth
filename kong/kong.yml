@@ -2,46 +2,26 @@ _format_version: "3.0"
 _transform: true
 
 services:
+  # - name: pdf-host
+  #   url: http://pdf-host:10081/
+  #   routes:
+  #     - name: pdf-route
+  #       expression: 'http.path ^= "/jsprice"'
+  #       protocols: [ "http", "https" ]
   - name: pdf-host
     url: http://pdf-host:10081/
     routes:
       - name: pdf-route
-        paths:
-          - /pdf
-        strip_path: true
+        expression: 'http.path ^= "/jsprice"'
+        protocols: [ "http", "https" ]
+        strip_path: false   # ← 追加
 
   - name: jsprice-converter
     url: http://jsprice-converter:10080/
     routes:
       - name: converter-route
-        paths:
-          - /converter
-        strip_path: true
-        methods: ["POST","GET"]
+        # メソッド条件も式で書く（POST/GET許可）
+        expression: '(http.path ^= "/converter") && (http.method == "GET" || http.method == "POST")'
+        protocols: [ "http", "https" ]
 
-# csv-postprocessor は現状Webが無いので未定義
-# RESTを足したら以下のように追加できます
-#  - name: csv-postprocessor
-#    url: http://csv-postprocessor:10082/
-#    routes:
-#      - name: postproc-route
-#        paths: ["/postproc"]
-#        strip_path: true
-
-plugins:
-  - name: oidc
-    config:
-      # KeycloakのOIDC Discovery
-      discovery: http://keycloak:8080/realms/needs-realm/.well-known/openid-configuration
-      client_id: kong
-      client_secret: "<Keycloakで発行したclient secret>"
-      scope: "openid profile email"
-      response_type: "code"
-      ssl_verify: "no"
-      # ログイン必須（未ログインはKeycloakへ302リダイレクト）
-      bearer_only: "no"
-      # セッションのCookie名など（プラグインにより項目名が多少異なります）
-      session_secret: "change-me-32-bytes-or-more"
-      redirect_after_logout_uri: "http://localhost:8000/"
-      # 認可に使うクレームの転送（上流へヘッダで渡す）
-      # userinfo_header_name 等、利用プラグインに合わせて設定
+# plugins は無し

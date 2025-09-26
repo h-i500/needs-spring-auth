@@ -124,6 +124,12 @@
       <artifactId>camel-mock</artifactId>
       <scope>test</scope>
     </dependency>
+
+    <!-- WebClient 用（必須） -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webflux</artifactId>
+    </dependency>
   </dependencies>
 
   <build>

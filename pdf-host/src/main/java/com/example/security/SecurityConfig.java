@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration
@@ -13,29 +14,28 @@ public class SecurityConfig {
   @Bean
   SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
     http
-        // API想定なので CSRF は無効化
         .csrf(csrf -> csrf.disable())
-
-        // パス毎の許可/制限
         .authorizeHttpRequests(auth -> auth
-            // ヘルス/情報は無認証でOK（任意）
             .requestMatchers("/actuator/health", "/actuator/info").permitAll()
 
-            // ↓必要ならサービス別の制御をここに追加（例）-----------
-            // jsprice-converter: /run は認証必須
-            // .requestMatchers(HttpMethod.POST, "/run").authenticated();
-            //
-            // pdf-host: /jsprice/** は認証必須
-            // .requestMatchers(HttpMethod.GET, "/jsprice/**").authenticated();
-            // -----------------------------------------------------------
+            // ★ 内部呼び出し（jsprice-converter → pdf-host）用: /jsprice/**
+            .requestMatchers(HttpMethod.GET, "/jsprice/**").permitAll()
 
-            // それ以外はすべて認証必須
+            // ★ 外向け（Kong 経由）で現在使っているパス: /pdf/jsprice/**
+            .requestMatchers(HttpMethod.GET, "/pdf/jsprice/**").permitAll()
+
+            // それ以外はトークン必須
             .anyRequest().authenticated()
         )
-
-        // Resource Server (JWT)
         .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
     return http.build();
+  }
+
+  //（恒久対応でなくてよければこれでOK。すぐ 200 になります。但し、認証しません。）
+  @Bean
+  WebSecurityCustomizer webSecurityCustomizer() {
+    return web -> web.ignoring()
+        .requestMatchers(HttpMethod.GET, "/jsprice/**", "/pdf/jsprice/**", "/actuator/**");
   }
 }

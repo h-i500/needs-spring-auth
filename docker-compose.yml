@@ -12,7 +12,8 @@ services:
               "oauth2": {
                 "resourceserver": {
                   "jwt": {
-                    "issuer-uri": "http://keycloak:8080/realms/needs-realm"
+                    "issuer-uri": "http://localhost:8080/realms/needs-realm",
+                    "jwk-set-uri": "http://keycloak:8080/realms/needs-realm/protocol/openid-connect/certs"
                   }
                 }
               }
@@ -46,7 +47,8 @@ services:
               "oauth2": {
                 "resourceserver": {
                   "jwt": {
-                    "issuer-uri": "http://keycloak:8080/realms/needs-realm"
+                    "issuer-uri": "http://localhost:8080/realms/needs-realm",
+                    "jwk-set-uri": "http://keycloak:8080/realms/needs-realm/protocol/openid-connect/certs"
                   }
                 }
               }
@@ -54,13 +56,18 @@ services:
           },
           "app": {
             "sourceUrl": "http://pdf-host:10081/jsprice/sample",
-            "output": { "dir": "/data/output", "filename": "jsprice_20250630.csv" }
+            "output": { "dir": "/data/output", "filename": "jsprice_20250630.csv" },
+            "keycloak": {
+              "tokenUrl": "http://keycloak:8080/realms/needs-realm/protocol/openid-connect/token",
+              "clientId": "service-cli",
+              "clientSecret": "service-secret"
+            }
           }
         }
       APP_DEBUG_EVERYMINUTE: "true"
-    depends_on:
-      pdf-host:
-        condition: service_healthy
+    # depends_on:
+    #   pdf-host:
+    #     condition: service_healthy
     networks: [needs-net]
 
   csv-postprocessor:
@@ -83,9 +90,9 @@ services:
       - ./data:/data
     ports:
       - "10082:10082"   # ← ホスト10082で公開
-    depends_on:
-      jsprice-converter:
-        condition: service_started
+    # depends_on:
+    #   jsprice-converter:
+    #     condition: service_started
     restart: unless-stopped
     networks: [needs-net]
 

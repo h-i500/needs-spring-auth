@@ -1,0 +1,49 @@
+
+
+アクセストークン取得（testuser / password）
+TOKEN=$(curl -s \
+  -X POST "http://localhost:8080/realms/needs-realm/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" \
+  -d "client_id=test-cli" \
+  -d "username=testuser" \
+  -d "password=password" \
+  | jq -r .access_token)
+
+echo "${TOKEN:0:20}..."
+
+
+
+トークンなしで呼ぶ（→ 401 になるはず）
+curl -i http://localhost:8000/pdf/jsprice/sample
+curl -i -X POST http://localhost:8000/converter/run -H "Content-Type: application/json" -d '{}'
+
+
+トークン付きで呼ぶ（→ 200/2xx）
+curl -i http://localhost:8000/pdf/jsprice/sample \
+  -H "Authorization: Bearer $TOKEN"
+
+curl -i -X POST http://localhost:8000/converter/run \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" -d '{}'
+
+
+---
+
+kong反映と動作確認
+# 変更反映
+docker compose up -d kong
+
+# 未認証（401になる）
+curl -i http://localhost:8000/pdf/jsprice/sample
+curl -i -X POST http://localhost:8000/converter/run -H "Content-Type: application/json" -d '{}'
+
+# トークン取得
+TOKEN=$(curl -s -X POST "http://localhost:8080/realms/needs-realm/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "grant_type=password" -d "client_id=test-cli" \
+  -d "username=testuser" -d "password=password" | jq -r .access_token)
+
+# 認証付き（2xxになる）
+curl -i http://localhost:8000/pdf/jsprice/sample -H "Authorization: Bearer $TOKEN"
+curl -i -X POST http://localhost:8000/converter/run -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}'
