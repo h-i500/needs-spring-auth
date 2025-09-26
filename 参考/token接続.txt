@@ -1,49 +1,121 @@
+了解。A案（`issuer = http://localhost:8080`）での“確実に通る”テスト手順を、コマンド付きで一気にいきます。
+※ compose抜粋の `-         "issuer-uri": ...` の先頭ハイフンは**差分表示の名残**なので、実ファイルでは消してください。
+※ `KC_HOSTNAME_*` は **Keycloak 用の環境変数**で、`kong` サービス下に置いても効果がありません（紛らわしいので削除推奨）。A案では不要です。
 
+# 手順
 
-アクセストークン取得（testuser / password）
-TOKEN=$(curl -s \
-  -X POST "http://localhost:8080/realms/needs-realm/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" \
-  -d "client_id=test-cli" \
-  -d "username=testuser" \
-  -d "password=password" \
-  | jq -r .access_token)
+## 0) 再起動
 
-echo "${TOKEN:0:20}..."
+```bash
+docker compose up -d --build keycloak pdf-host jsprice-converter kong
+```
 
+## 1) ユーザトークン発行（`iss=http://localhost:8080/...`）
 
+```bash
+USER_TOKEN=$(
+  curl -s http://localhost:8080/realms/needs-realm/protocol/openid-connect/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=password" \
+    -d "client_id=test-cli" \
+    -d "username=testuser" \
+    -d "password=password" | jq -r .access_token
+)
+echo "USER_TOKEN: ${USER_TOKEN:0:20}..."
+echo "$USER_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq .iss
+# => "http://localhost:8080/realms/needs-realm" であることを確認
+```
 
-トークンなしで呼ぶ（→ 401 になるはず）
-curl -i http://localhost:8000/pdf/jsprice/sample
-curl -i -X POST http://localhost:8000/converter/run -H "Content-Type: application/json" -d '{}'
+## 2) pdf-host 単体テスト
 
+* まず**無認証**で 401：
 
-トークン付きで呼ぶ（→ 200/2xx）
-curl -i http://localhost:8000/pdf/jsprice/sample \
-  -H "Authorization: Bearer $TOKEN"
+```bash
+curl -i http://localhost:10081/jsprice/sample
+```
 
+* 次に**認証あり**で 200（PDF）：
+
+```bash
+curl -i http://localhost:10081/jsprice/sample \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+## 3) Kong 経由の GET テスト（/jsprice）
+
+* 無認証で 401：
+
+```bash
+curl -i http://localhost:8000/jsprice/sample
+```
+
+* 認証ありで 200（PDF）：
+
+```bash
+curl -i http://localhost:8000/jsprice/sample \
+  -H "Authorization: Bearer $USER_TOKEN"
+```
+
+## 4) コンバータの**手動トリガ**（/converter/run）
+
+`RunController` → `direct:run` → **受けたユーザの Authorization を引き継ぎ** → `pdf-host` へ。
+
+```bash
 curl -i -X POST http://localhost:8000/converter/run \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" -d '{}'
+  -H "Authorization: Bearer $USER_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{}'
+```
 
+* 200 が返り、コンバータのログに 401 が出ていないことを確認：
+
+```bash
+docker logs -f needs-spring-auth-jsprice-converter-1
+# 期待ログ例：
+# Downloading PDF from: http://pdf-host:10081/jsprice/sample
+# Writing CSV to: /data/output/jsprice_20250630.csv
+# Done.
+```
+
+* CSV 出力を確認（ホスト側）：
+
+```bash
+ls -l ./data/output
+```
+
+## 5) コンバータの**定期実行**（Quartz → `direct:runJob` → サービス資格情報）
+
+`ServiceTokenProvider` が `client_credentials` で **サービス用トークン**を取得して実行します。
+
+* まずサービス・トークンが**取得できるか**を単独確認：
+
+```bash
+SERVICE_TOKEN=$(
+  curl -s http://localhost:8080/realms/needs-realm/protocol/openid-connect/token \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    -d "grant_type=client_credentials" \
+    -d "client_id=service-cli" \
+    -d "client_secret=service-secret" | jq -r .access_token
+)
+echo "SERVICE_TOKEN: ${SERVICE_TOKEN:0:20}..."
+```
+
+* 取得できたら、**Quartz のタイミング**で `jsprice-converter` のログを観察：
+
+```bash
+docker logs -f needs-spring-auth-jsprice-converter-1
+# 「Downloading PDF ... → Writing CSV ... → Done.」が定期的に出る
+```
+
+> ※ もしここで 401 が出る場合は、Keycloak に **`service-cli` (confidential) + Service Accounts有効** が存在するかを再確認してください（既に発行できていればOK）。
+> A案では pdf-host/jsprice-converter の `issuer-uri` が双方 `http://localhost:8080/...` で統一されていることも要確認。
+
+## 6) 典型エラーの即時チェック
+
+* **401（pdf-host 直）**：`USER_TOKEN` の `iss` が `http://localhost:8080/...` か確認。
+* **/converter/run で 401**：`RunController` は受けた `Authorization` を渡す設計なので、**POST 側にトークンを付け忘れていないか**確認。
+* **定期実行で 401**：`SERVICE_TOKEN` が発行できるか（上記 Step 5 前半）／`client_id`・`client_secret` の誤りがないか。
 
 ---
 
-kong反映と動作確認
-# 変更反映
-docker compose up -d kong
-
-# 未認証（401になる）
-curl -i http://localhost:8000/pdf/jsprice/sample
-curl -i -X POST http://localhost:8000/converter/run -H "Content-Type: application/json" -d '{}'
-
-# トークン取得
-TOKEN=$(curl -s -X POST "http://localhost:8080/realms/needs-realm/protocol/openid-connect/token" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  -d "grant_type=password" -d "client_id=test-cli" \
-  -d "username=testuser" -d "password=password" | jq -r .access_token)
-
-# 認証付き（2xxになる）
-curl -i http://localhost:8000/pdf/jsprice/sample -H "Authorization: Bearer $TOKEN"
-curl -i -X POST http://localhost:8000/converter/run -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{}'
+この流れで、**手動（ユーザトークン経由）**と**定期（サービス資格情報）**の両方が通るかを、最短コマンドで検証できます。必要なら、最後に `./data/txt` へ csv-postprocessor が生成したファイルも合わせて確認してください。

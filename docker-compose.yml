@@ -132,6 +132,11 @@ services:
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 16k
       KONG_NGINX_PROXY_PROXY_BUFFERS: "8 16k"
       KONG_NGINX_PROXY_PROXY_BUFFERING: "on"
+
+       # ↓↓↓ 追加（発行URLを固定）
+      KC_HOSTNAME_URL: "http://localhost:8080"
+      KC_HOSTNAME_ADMIN_URL: "http://localhost:8080"
+      KC_HOSTNAME_STRICT: "false"
     ports:
       - "8000:8000"  # Public gateway
       - "8001:8001"  # Admin
@@ -176,7 +181,12 @@ services:
 ### keycloak
   keycloak:
     image: quay.io/keycloak/keycloak:25.0.2
-    command: ["start-dev","--import-realm"]
+    # command: ["start-dev","--import-realm"]
+    command:
+      - start-dev
+      - --import-realm
+      - --hostname=localhost
+      - --hostname-strict=false
     environment:
       KEYCLOAK_ADMIN: admin
       KEYCLOAK_ADMIN_PASSWORD: admin

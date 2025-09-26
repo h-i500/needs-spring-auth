@@ -26,7 +26,9 @@ public class RunController {
     if (auth != null && !auth.isBlank()) {
       headers.put("Authorization", auth); // ← 受けたトークンをヘッダで渡す
     }
-    producerTemplate.sendBodyAndHeaders("direct:run", null, headers);
+    // producerTemplate.sendBodyAndHeaders("direct:run", null, headers);
+    // フル処理（PDFダウンロード→CSV化→保存）
+    producerTemplate.sendBodyAndHeaders("direct:runJob", null, headers);
     return ResponseEntity.ok().build();
   }
 }

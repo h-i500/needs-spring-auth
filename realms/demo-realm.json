@@ -20,23 +20,13 @@
       "protocol": "openid-connect",
       "name": "Kong Gateway",
       "enabled": true,
-
       "publicClient": false,
       "standardFlowEnabled": true,
-      "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-
-      "redirectUris": [
-        "http://localhost:8000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:8000"
-      ],
+      "redirectUris": ["http://localhost:8000/*"],
+      "webOrigins": ["http://localhost:8000"],
       "baseUrl": "http://localhost:8000/",
-      "adminUrl": "",
-      "rootUrl": "",
-
       "attributes": {
         "post.logout.redirect.uris": "http://localhost:8000/*",
         "oauth2.device.authorization.grant.enabled": "false",
@@ -44,10 +34,6 @@
         "backchannel.logout.revoke.offline.tokens": "true",
         "pkce.code.challenge.method": "S256"
       },
-
-      "defaultClientScopes": [],
-      "optionalClientScopes": [],
-
       "secret": "CHANGE_ME_CLIENT_SECRET"
     },
     {
@@ -60,6 +46,26 @@
       "serviceAccountsEnabled": false,
       "redirectUris": [],
       "webOrigins": []
+    },
+    {
+      "clientId": "service-cli",
+      "protocol": "openid-connect",
+      "name": "Service to Service (jsprice)",
+      "enabled": true,
+
+      "publicClient": false,
+      "standardFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "oauth2.device.authorization.grant.enabled": "false",
+        "client_credentials.use_refresh_token": "false"
+      },
+
+      "secret": "service-secret"
     }
   ],
 

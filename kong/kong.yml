@@ -20,8 +20,8 @@ services:
     url: http://jsprice-converter:10080/
     routes:
       - name: converter-route
-        # メソッド条件も式で書く（POST/GET許可）
         expression: '(http.path ^= "/converter") && (http.method == "GET" || http.method == "POST")'
         protocols: [ "http", "https" ]
+        strip_path: false  
 
 # plugins は無し
